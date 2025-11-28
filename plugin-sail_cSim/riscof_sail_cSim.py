@@ -7,6 +7,7 @@ import logging
 import random
 import string
 import json
+from jsoncomment import JsonComment
 from string import Template
 
 import riscof.utils as utils
@@ -94,9 +95,10 @@ class sail_cSim(pluginTemplate):
         self.compile_cmd += neorv32_override
 
     def runTests(self, testList, cgf_file=None, header_file= None):
-        if os.path.exists(self.work_dir+ "/Makefile." + self.name[:-1]):
-            os.remove(self.work_dir+ "/Makefile." + self.name[:-1])
-        make = utils.makeUtil(makefilePath=os.path.join(self.work_dir, "Makefile." + self.name[:-1]))
+        makefile = makefilePath=os.path.join(self.work_dir, "Makefile." + self.name[:-1])
+        if os.path.exists(makefile):
+            os.remove(makefile)
+        make = utils.makeUtil(makefile)
         make.makeCommand = self.make + ' -j' + self.num_jobs
 
         isa_yaml = utils.load_yaml(self.isa_yaml_path)
@@ -110,7 +112,8 @@ class sail_cSim(pluginTemplate):
 
         try:
             sail_config = subprocess.run(["sail_riscv_sim", "--print-default-config"], check= True, text=True, capture_output=True)
-            sail_config = json.loads(sail_config.stdout)
+            parser = JsonComment(json)
+            sail_config = parser.loads(sail_config.stdout)
         except subprocess.CalledProcessError as e:
             print("sail_riscv_sim --print-default-config failed:", e.stderr)
             exit(1)
@@ -178,8 +181,8 @@ class sail_cSim(pluginTemplate):
             else:
                 coverage_cmd = ''
 
-
             execute+=coverage_cmd
 
             make.add_target(execute)
+
         make.execute_all(self.work_dir)

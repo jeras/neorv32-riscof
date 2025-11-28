@@ -14,7 +14,7 @@ sleep 2
 riscof run --config=config.ini \
            --suite=riscv-arch-test/riscv-test-suite/ \
            --env=riscv-arch-test/riscv-test-suite/env \
-           --no-browser
+           --no-browser --no-dut-run
 
 # check report - run successful?
 if grep -rniq riscof_work/report.html -e '>0failed<'

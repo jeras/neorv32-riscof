@@ -65,6 +65,8 @@ class neorv32(pluginTemplate):
         self.isa_spec = os.path.abspath(config['ispec'])
         self.platform_spec = os.path.abspath(config['pspec'])
 
+        self.make = config['make'] if 'make' in config else 'make'
+
         #We capture if the user would like the run the tests on the target or
         #not. If you are interested in just compiling the tests and not running
         #them on the target, then following variable should be set to False
@@ -116,12 +118,15 @@ class neorv32(pluginTemplate):
       self.compile_cmd += neorv32_override
 
     def runTests(self, testList):
+      makefile = makefilePath=os.path.join(self.work_dir, "Makefile." + self.name[:-1])
+      if os.path.exists(makefile):
+          os.remove(makefile)
+      make = utils.makeUtil(makefile)
+      make.makeCommand = self.make + ' -j' + self.num_jobs
 
       # we will iterate over each entry in the testList. Each entry node will be referred to by the
       # variable testname.
       for testname in testList:
-
-          logger.debug('Running Test: {0} on DUT'.format(testname))
           # for each testname we get all its fields (as described by the testList format)
           testentry = testList[testname]
 
@@ -149,40 +154,26 @@ class neorv32(pluginTemplate):
 
           # substitute all variables in the compile command that we created in the initialize
           # function
-          cmd = self.compile_cmd.format(marchstr, self.xlen, test, elf, compile_macros)
-
-          # just a simple logger statement that shows up on the terminal
-          logger.debug('Compiling test: ' + test)
+          execute = self.compile_cmd.format(marchstr, self.xlen, test, elf, compile_macros)
 
           # the following command spawns a process to run the compile command. Note here, we are
           # changing the directory for this command to that pointed by test_dir. If you would like
           # the artifacts to be dumped else where change the test_dir variable to the path of your
           # choice.
-          utils.shellCommand(cmd).run(cwd=test_dir)
+#          utils.shellCommand(cmd).run(cwd=test_dir)
 
           # generate NEORV32 memory image
-          execute = f"{RVOBJCOPY} -I elf32-little {test_dir}/{elf} -j .text -O binary {test_dir}/main.bin"
-          execute += " && "
-          execute += f"{IMAGEGEN_PATH}/{IMAGEGEN_EXE} -t raw_hex -i {test_dir}/main.bin -o {test_dir}/main.hex"
-          logger.debug('DUT executing ' + execute)
-          utils.shellCommand(execute).run()
-
-          # print current test
-          print(f"{test=}")
+          execute += f" {RVOBJCOPY} -I elf32-little {test_dir}/{elf} -j .text -O binary {test_dir}/main.bin"
+          execute += " &&"
+          execute += f" {IMAGEGEN_PATH}/{IMAGEGEN_EXE} -t raw_hex -i {test_dir}/main.bin -o {test_dir}/main.hex;"
 
           # execute GHDL simulation
-          execute = f"sh sim/ghdl_run.sh -gMEM_FILE={test_dir}/main.hex"
-          logger.debug('DUT executing ' + execute)
-          utils.shellCommand(execute).run()
+          execute = f" sh sim/ghdl_run.sh -gMEM_FILE={test_dir}/main.hex;"
 
           # copy resulting signature file and trace log
-          execute = f"cp -f ./sim/*.signature {test_dir}/."
-          execute += " && "
-          execute += f"cp -f ./sim/*.log {test_dir}/."
-          logger.debug('DUT executing ' + execute)
-          utils.shellCommand(execute).run()
+          execute = f" cp -f ./sim/*.signature {test_dir}/."
+          execute += " &&"
+          execute += f" cp -f ./sim/*.log {test_dir}/.;"
+          make.add_target(execute)
 
-      # if target runs are not required then we simply exit as this point after running all
-      # the makefile targets.
-      if not self.target_run:
-          raise SystemExit
+      make.execute_all(self.work_dir)
