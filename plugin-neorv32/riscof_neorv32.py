@@ -29,6 +29,7 @@ class neorv32(pluginTemplate):
         sclass = super().__init__(*args, **kwargs)
 
         config = kwargs.get('config')
+        self.config = config
 
         # If the config node for this DUT is missing or empty. Raise an error. At minimum we need
         # the paths to the ispec and pspec files
@@ -48,7 +49,7 @@ class neorv32(pluginTemplate):
         utils.shellCommand(execute).run()
 
         # prepare simulation (GHDL)
-        execute = f"sh ./sim/ghdl_setup.sh && rm -f *.log *.signature"
+        execute = f"./sim/ghdl_setup.sh && rm -f *.log *.signature"
         logger.debug('DUT executing ' + execute)
         utils.shellCommand(execute).run()
 
@@ -116,73 +117,53 @@ class neorv32(pluginTemplate):
       self.compile_cmd += neorv32_override
 
     def runTests(self, testList):
+        makefile = os.path.join(self.work_dir, "Makefile." + self.name[:-1])
+        if os.path.exists(makefile):
+            os.remove(makefile)
+        make = utils.makeUtil(makefilePath=makefile)
+        make.makeCommand = 'make -j' + self.num_jobs
 
-      # we will iterate over each entry in the testList. Each entry node will be referred to by the
-      # variable testname.
-      for testname in testList:
+        # we will iterate over each entry in the testList. Each entry node will be referred to by the
+        # variable testname.
+        for testname in testList:
 
-          logger.debug('Running Test: {0} on DUT'.format(testname))
-          # for each testname we get all its fields (as described by the testList format)
-          testentry = testList[testname]
+            logger.debug('Running Test: {0} on DUT'.format(testname))
+            # for each testname we get all its fields (as described by the testList format)
+            testentry = testList[testname]
 
-          # we capture the path to the assembly file of this test
-          test = testentry['test_path']
+            # we capture the path to the assembly file of this test
+            test = testentry['test_path']
 
-          # capture the directory where the artifacts of this test will be dumped/created.
-          test_dir = testentry['work_dir']
+            # capture the directory where the artifacts of this test will be dumped/created.
+            test_dir = testentry['work_dir']
 
-          # name of the elf file after compilation of the test
-          elf = 'main.elf'
+            # name of the signature file as per requirement of RISCOF. RISCOF expects the signature to
+            # be named as DUT-<dut-name>.signature. The below variable creates an absolute path of
+            # signature file.
+            sig_file = os.path.join(test_dir, self.name[:-1] + ".signature")
 
-          # name of the signature file as per requirement of RISCOF. RISCOF expects the signature to
-          # be named as DUT-<dut-name>.signature. The below variable creates an absolute path of
-          # signature file.
-          sig_file = os.path.join(test_dir, self.name[:-1] + ".signature")
+            # for each test there are specific compile macros that need to be enabled. The macros in
+            # the testList node only contain the macros/values. For the gcc toolchain we need to
+            # prefix with "-D". The following does precisely that.
+            compile_macros= ' -D' + " -D".join(testentry['macros'])
 
-          # for each test there are specific compile macros that need to be enabled. The macros in
-          # the testList node only contain the macros/values. For the gcc toolchain we need to
-          # prefix with "-D". The following does precisely that.
-          compile_macros= ' -D' + " -D".join(testentry['macros'])
+            # collect the march string required for the compiler
+            marchstr = testentry['isa'].lower()
 
-          # collect the march string required for the compiler
-          marchstr = testentry['isa'].lower()
+            # substitute all variables in the compile command that we created in the initialize
+            # function
+            execute = self.compile_cmd.format(marchstr, self.xlen, test, test_dir+'/main.elf', compile_macros) + "; \\\n"
 
-          # substitute all variables in the compile command that we created in the initialize
-          # function
-          cmd = self.compile_cmd.format(marchstr, self.xlen, test, elf, compile_macros)
+            # generate NEORV32 memory image
+            execute += f"pwd; \\\n"
+            execute += f"{RVOBJCOPY} -I elf32-little {test_dir}/main.elf -j .text -O binary {test_dir}/main.bin; \\\n"
+            execute += f"../{IMAGEGEN_PATH}/{IMAGEGEN_EXE} -t raw_hex -i {test_dir}/main.bin -o {test_dir}/main.hex; \\\n"
 
-          # just a simple logger statement that shows up on the terminal
-          logger.debug('Compiling test: ' + test)
+            # execute GHDL simulation
+            execute += f"../sim/ghdl_run.sh -gTEST_PATH={test_dir}/; \\\n"
 
-          # the following command spawns a process to run the compile command. Note here, we are
-          # changing the directory for this command to that pointed by test_dir. If you would like
-          # the artifacts to be dumped else where change the test_dir variable to the path of your
-          # choice.
-          utils.shellCommand(cmd).run(cwd=test_dir)
+            # copy resulting signature file and trace log
+            make.add_target(execute)
 
-          # generate NEORV32 memory image
-          execute = f"{RVOBJCOPY} -I elf32-little {test_dir}/{elf} -j .text -O binary {test_dir}/main.bin"
-          execute += " && "
-          execute += f"{IMAGEGEN_PATH}/{IMAGEGEN_EXE} -t raw_hex -i {test_dir}/main.bin -o {test_dir}/main.hex"
-          logger.debug('DUT executing ' + execute)
-          utils.shellCommand(execute).run()
+        make.execute_all(self.work_dir)
 
-          # print current test
-          print(f"{test=}")
-
-          # execute GHDL simulation
-          execute = f"sh sim/ghdl_run.sh -gMEM_FILE={test_dir}/main.hex"
-          logger.debug('DUT executing ' + execute)
-          utils.shellCommand(execute).run()
-
-          # copy resulting signature file and trace log
-          execute = f"cp -f ./sim/*.signature {test_dir}/."
-          execute += " && "
-          execute += f"cp -f ./sim/*.log {test_dir}/."
-          logger.debug('DUT executing ' + execute)
-          utils.shellCommand(execute).run()
-
-      # if target runs are not required then we simply exit as this point after running all
-      # the makefile targets.
-      if not self.target_run:
-          raise SystemExit

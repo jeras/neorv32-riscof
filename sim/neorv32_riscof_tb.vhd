@@ -20,7 +20,7 @@ use neorv32.neorv32_package.all;
 
 entity neorv32_riscof_tb is
   generic (
-    MEM_FILE : string := "" -- memory initialization file (max 4MB)
+    TEST_PATH : string := "" -- path for memory initialization and signature files
   );
 end neorv32_riscof_tb;
 
@@ -29,6 +29,8 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
   -- memory configuration --
   constant mem_size_c : natural := 4*1024*1024; -- bytes
   constant mem_base_c : std_ulogic_vector(31 downto 0) := x"80000000";
+
+  constant MEM_FILE : string := TEST_PATH & "main.hex";
 
   -- memory type --
   type mem8_bv_t is array (natural range <>) of bit_vector(7 downto 0); -- bit_vector type for optimized system storage
@@ -138,6 +140,7 @@ begin
     IO_TRACER_EN        => true,
     IO_TRACER_BUFFER    => 1,
     IO_TRACER_SIMLOG_EN => true
+--    IO_TRACER_SIMLOG_FILE => TEST_PATH & "DUT-neorv32.log"
   )
   port map (
     -- Global control --
@@ -201,7 +204,7 @@ begin
   -- Environment Control --------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
   env_ctrl: process(rst_gen, clk_gen)
-    file     file_v : text open write_mode is "DUT-neorv32.signature";
+    file     file_v : text open write_mode is TEST_PATH & "DUT-neorv32.signature";
     variable line_v : line;
     variable char_v : integer;
   begin
