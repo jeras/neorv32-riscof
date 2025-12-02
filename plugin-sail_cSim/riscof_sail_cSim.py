@@ -95,9 +95,10 @@ class sail_cSim(pluginTemplate):
         self.compile_cmd += neorv32_override
 
     def runTests(self, testList, cgf_file=None, header_file= None):
-        if os.path.exists(self.work_dir+ "/Makefile." + self.name[:-1]):
-            os.remove(self.work_dir+ "/Makefile." + self.name[:-1])
-        make = utils.makeUtil(makefilePath=os.path.join(self.work_dir, "Makefile." + self.name[:-1]))
+        makefile = os.path.join(self.work_dir, "Makefile." + self.name[:-1])
+        if os.path.exists(makefile):
+            os.remove(makefile)
+        make = utils.makeUtil(makefilePath=makefile)
         make.makeCommand = self.make + ' -j' + self.num_jobs
 
         isa_yaml = utils.load_yaml(self.isa_yaml_path)
@@ -184,8 +185,8 @@ class sail_cSim(pluginTemplate):
             else:
                 coverage_cmd = ''
 
-
             execute+=coverage_cmd
 
             make.add_target(execute)
+        
         make.execute_all(self.work_dir)
