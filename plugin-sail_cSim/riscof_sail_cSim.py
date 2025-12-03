@@ -42,7 +42,7 @@ class sail_cSim(pluginTemplate):
     def initialise(self, suite, work_dir, archtest_env):
         self.suite = suite
         self.work_dir = work_dir
-        self.objdump_cmd = 'riscv-none-elf-objdump -D {0} > {2};'
+        self.objdump_cmd = 'riscv-none-elf-objdump -D {0} > {2}'
         self.compile_cmd = 'riscv-none-elf-gcc -march={0} \
          -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles\
          -T '+self.pluginpath+'/env/link.ld\
@@ -146,27 +146,31 @@ class sail_cSim(pluginTemplate):
             json.dump(sail_config, file, indent=4)
 
         for file in testList:
+
             testentry = testList[file]
             test = testentry['test_path']
             test_dir = testentry['work_dir']
             test_name = test.rsplit('/',1)[1][:-2]
 
-            elf = 'ref.elf'
+            elf       = os.path.join(test_dir, 'ref.elf')
+            signature = os.path.join(test_dir, self.name[:-1] + ".signature")
+            disass    = os.path.join(test_dir, 'ref.disass')
+            log       = os.path.join(test_dir, test_name + ".log")
 
-            execute = "@cd "+testentry['work_dir']+";"
+            execute = ""
 
-            cmd = self.compile_cmd.format(testentry['isa'].lower(), self.xlen) + ' ' + test + ' -o ' + elf
-            compile_cmd = cmd + ' -D' + " -D".join(testentry['macros'])
-            execute+=compile_cmd+";"
+            cmd = self.compile_cmd.format(testentry['isa'].lower(), self.xlen) + ' ' + test + ' -o ' + elf + ' -D' + " -D".join(testentry['macros'])
+            execute += cmd+"\n"
 
-            execute += self.objdump_cmd.format(elf, self.xlen, 'ref.disass')
-            sig_file = os.path.join(test_dir, self.name[:-1] + ".signature")
+            cmd = self.objdump_cmd.format(elf, self.xlen, disass)
+            execute += cmd+"\n"
 
-            execute += self.sail_exe + ' --config={0} --trace-all --signature-granularity=4  --test-signature={1} {2} > {3}.log 2>&1;'.format(sail_config_path, sig_file, elf, test_name)
+            cmd = self.sail_exe + f' --config={sail_config_path} --trace-all --signature-granularity=4  --test-signature={signature} {elf} > {log} 2>&1'
+            execute += cmd+"\n"
 
             cov_str = ' '
             for label in testentry['coverage_labels']:
-                cov_str+=' -l '+label
+                cov_str += ' -l '+label
 
             cgf_mac = ' '
             header_file_flag = ' '
@@ -174,18 +178,14 @@ class sail_cSim(pluginTemplate):
                 header_file_flag = f' -h {header_file} '
                 cgf_mac += ' -cm common '
                 for macro in testentry['mac']:
-                    cgf_mac+=' -cm '+macro
+                    cgf_mac += ' -cm '+macro
 
             if cgf_file is not None:
-                coverage_cmd = 'riscv_isac --verbose info coverage -d \
-                        -t {0}.log --parser-name c_sail -o coverage.rpt  \
-                        --sig-label begin_signature  end_signature \
-                        -e ref.elf -c {1} -x{2} -f{3} {4} {5} {6};'.format(\
-                        test_name, ' -c '.join(cgf_file), self.xlen, self.flen, cov_str, header_file_flag, cgf_mac)
-            else:
-                coverage_cmd = ''
-
-            execute+=coverage_cmd
+                cmd = 'riscv_isac --verbose info coverage -d' + \
+                    f'-t {test_name}.log --parser-name c_sail -o coverage.rpt' + \
+                     '--sig-label begin_signature  end_signature ' + \
+                    f'-e ref.elf -c {' -c '.join(cgf_file)} -x{self.xlen} -f{self.flen} {cov_str} {header_file_flag} {cgf_mac}'
+                execute += cmd
 
             make.add_target(execute)
         

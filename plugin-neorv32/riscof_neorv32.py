@@ -61,14 +61,6 @@ class neorv32(pluginTemplate):
         self.isa_spec = os.path.abspath(config['ispec'])
         self.platform_spec = os.path.abspath(config['pspec'])
 
-        #We capture if the user would like the run the tests on the target or
-        #not. If you are interested in just compiling the tests and not running
-        #them on the target, then following variable should be set to False
-        if 'target_run' in config and config['target_run']=='0':
-            self.target_run = False
-        else:
-            self.target_run = True
-
         # Return the parameters set above back to RISCOF for further processing.
         return sclass
 
@@ -121,6 +113,7 @@ class neorv32(pluginTemplate):
         # we will iterate over each entry in the testList. Each entry node will be referred to by the
         # variable testname.
         for testname in testList:
+            execute = ""
 
             logger.debug('Running Test: {0} on DUT'.format(testname))
             # for each testname we get all its fields (as described by the testList format)
@@ -147,15 +140,16 @@ class neorv32(pluginTemplate):
 
             # substitute all variables in the compile command that we created in the initialize
             # function
-            execute = self.compile_cmd.format(marchstr, self.xlen, test, test_dir+'/main.elf', compile_macros) + "; \\\n"
+            cmd = self.compile_cmd.format(marchstr, self.xlen, test, test_dir+'/main.elf', compile_macros)
+            execute += cmd + "\n"
 
             # generate NEORV32 memory image
-            execute += f"pwd; \\\n"
-            execute += f"{RVOBJCOPY} -I elf32-little {test_dir}/main.elf -j .text -O binary {test_dir}/main.bin; \\\n"
-            execute += f"cat {test_dir}/main.bin | hexdump -v -e \'\"%08x\\n\"\' > {test_dir}/main.hex; \\\n"
+            cmd = f"{RVOBJCOPY} -I elf32-little {test_dir}/main.elf -j .text -O binary {test_dir}/main.bin"
+            execute += cmd + "\n"
 
             # execute GHDL simulation
-            execute += f"../sim/ghdl_run.sh -gTEST_PATH={test_dir}/; \\\n"
+            cmd = f"../sim/ghdl_run.sh -gTEST_PATH={test_dir}/"
+            execute += cmd + "\n"
 
             # copy resulting signature file and trace log
             make.add_target(execute)
