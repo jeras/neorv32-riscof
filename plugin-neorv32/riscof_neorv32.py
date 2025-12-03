@@ -43,11 +43,6 @@ class neorv32(pluginTemplate):
         # is missing in the config.ini we can hardcode the alternate here.
         self.dut_exe = os.path.join(config['PATH'] if 'PATH' in config else "","neorv32")
 
-        # compile NEORV32 image generator
-        execute = f"{HOSTGCC} {IMAGEGEN_PATH}/{IMAGEGEN_EXE}.c -o {IMAGEGEN_PATH}/{IMAGEGEN_EXE}"
-        logger.debug('DUT executing ' + execute)
-        utils.shellCommand(execute).run()
-
         # prepare simulation (GHDL)
         execute = f"./sim/ghdl_setup.sh && rm -f *.log *.signature"
         logger.debug('DUT executing ' + execute)
@@ -157,7 +152,6 @@ class neorv32(pluginTemplate):
             # generate NEORV32 memory image
             execute += f"pwd; \\\n"
             execute += f"{RVOBJCOPY} -I elf32-little {test_dir}/main.elf -j .text -O binary {test_dir}/main.bin; \\\n"
-            execute += f"../{IMAGEGEN_PATH}/{IMAGEGEN_EXE} -t raw_hex -i {test_dir}/main.bin -o {test_dir}/main.hex; \\\n"
 
             # execute GHDL simulation
             execute += f"../sim/ghdl_run.sh -gTEST_PATH={test_dir}/; \\\n"
