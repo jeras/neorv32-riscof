@@ -32,20 +32,19 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
 
   -- memory type (bit_vector type for optimized system storage) --
   type mem8_bv_t is array (natural range <>) of bit_vector(7 downto 0);
-  type mem32_bv_t is array (natural range <>) of bit_vector(32-1 downto 0);
 
   -- initialize mem8_bv_t array from plain binary file --
-  impure function mem8_bv_init_bin_f(file_name : string; num_words : natural) return mem8_bv_t is
+  impure function mem8_bv_init_bin_f(file_name : string; size : natural) return mem8_bv_t is
     type char_file is file of character;
     file     mem_f   : char_file;
-    variable mem_v   : mem8_bv_t(0 to num_words-1);
+    variable mem_v   : mem8_bv_t(0 to size-1);
     variable index_v : natural;
     variable data_v  : character;
   begin
     if (file_name /= "") then
       file_open(mem_f, file_name, READ_MODE);
       index_v := 0;
-      while (endfile(mem_f) = false) and (index_v < num_words) loop
+      while (endfile(mem_f) = false) and (index_v < size) loop
         read(mem_f, data_v);
         mem_v(index_v) := to_bitvector(std_logic_vector(to_unsigned(character'pos(data_v),8)));
         index_v := index_v + 1;
@@ -70,25 +69,6 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
     end if;
     file_close(mem_f);
   end procedure mem8_bv_dump_bin_f;
-
-  -- initialize mem32_bv_t array from plain ASCII HEX file  --
-  impure function mem32_bv_init_hex_f(file_name : string; size : natural) return mem32_bv_t is
-    file     text_file   : text open read_mode is file_name;
-    variable text_line_v : line;
-    variable mem32_bv_v  : mem32_bv_t(0 to size/4-1);
-    variable index_v     : natural;
-    variable data_v      : std_logic_vector(32-1 downto 0);
-  begin
-    index_v := 0;
-    if (file_name /= "") then
-      while (endfile(text_file) = false) and (index_v < size/4) loop
-        readline(text_file, text_line_v);
-        hread(text_line_v, mem32_bv_v(index_v));
-        index_v := index_v + 1;
-      end loop;
-    end if;
-    return mem32_bv_v;
-  end function mem32_bv_init_hex_f;
 
   -- memory word address --
   signal mem_addr : integer range 0 to mem_size_c-1;
@@ -169,6 +149,7 @@ begin
     IO_TRACER_EN        => true,
     IO_TRACER_BUFFER    => 1,
     IO_TRACER_SIMLOG_EN => false
+--    IO_TRACER_SIMLOG_EN => true
 --    IO_TRACER_SIMLOG_FILE => TEST_PATH & "DUT-neorv32.log"
   )
   port map (
@@ -195,33 +176,6 @@ begin
   xbus.rdata <= mem_rdata;
   xbus.ack   <= mem_ack or env_ack;
 
-
---  -- Main Memory [rwx] - 32-bit -------------------------------------------------------------
---  -- -------------------------------------------------------------------------------------------
---  main_mem: process(clk_gen)
---    -- memory array --
---    variable mem32_v : mem32_bv_t(0 to mem_size_c/4-1) := mem32_bv_init_hex_f(TEST_PATH & "main.hex", mem_size_c);
---    variable mem_index_v : natural;
---  begin
---    if rising_edge(clk_gen) then
---      -- defaults --
---      mem_rdata <= (others => '0');
---      mem_ack   <= '0';
---      -- bus access --
---      if (xbus.cyc = '1') and (xbus.stb = '1') and (xbus.addr(31 downto 28) = mem_base_c(31 downto 28)) then
---        mem_index_v := mem_addr / 4;
---        mem_ack <= '1';
---        if (xbus.we = '1') then
---          if (xbus.sel(0) = '1') then mem32_v(mem_index_v)(07 downto 00) := to_bitvector(xbus.wdata(07 downto 00)); end if;
---          if (xbus.sel(1) = '1') then mem32_v(mem_index_v)(15 downto 08) := to_bitvector(xbus.wdata(15 downto 08)); end if;
---          if (xbus.sel(2) = '1') then mem32_v(mem_index_v)(23 downto 16) := to_bitvector(xbus.wdata(23 downto 16)); end if;
---          if (xbus.sel(3) = '1') then mem32_v(mem_index_v)(31 downto 24) := to_bitvector(xbus.wdata(31 downto 24)); end if;
---        else
---          mem_rdata <= to_stdulogicvector(mem32_v(mem_index_v));
---        end if;
---      end if;
---    end if;
---  end process main_mem;
 
   -- Main Memory [rwx] - byte array ------------------
   -- -------------------------------------------------------------------------------------------
