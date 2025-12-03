@@ -184,7 +184,7 @@ class sail_cSim(pluginTemplate):
                 cmd = 'riscv_isac --verbose info coverage -d' + \
                     f'-t {test_name}.log --parser-name c_sail -o coverage.rpt' + \
                      '--sig-label begin_signature  end_signature ' + \
-                    f'-e ref.elf -c {' -c '.join(cgf_file)} -x{self.xlen} -f{self.flen} {cov_str} {header_file_flag} {cgf_mac}'
+                    f'-e ref.elf -c {" -c ".join(cgf_file)} -x{self.xlen} -f{self.flen} {cov_str} {header_file_flag} {cgf_mac}'
                 execute += cmd
 
             make.add_target(execute)
