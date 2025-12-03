@@ -152,6 +152,7 @@ class neorv32(pluginTemplate):
             # generate NEORV32 memory image
             execute += f"pwd; \\\n"
             execute += f"{RVOBJCOPY} -I elf32-little {test_dir}/main.elf -j .text -O binary {test_dir}/main.bin; \\\n"
+            execute += f"cat {test_dir}/main.bin | hexdump -v -e \'\"%08x\\n\"\' > {test_dir}/main.hex; \\\n"
 
             # execute GHDL simulation
             execute += f"../sim/ghdl_run.sh -gTEST_PATH={test_dir}/; \\\n"
