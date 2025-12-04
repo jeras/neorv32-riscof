@@ -6,25 +6,47 @@
 
 #define ALIGNMENT 2
 
-// output data layout
 #define RVMODEL_DATA_SECTION \
-  .align 8;                  \
-  .global begin_regstate;    \
-  begin_regstate:            \
-  .word 128;                 \
-  .align 8;                  \
-  .global end_regstate;      \
-  end_regstate:              \
-  .word 4;
+        .pushsection .tohost,"aw",@progbits;              \
+        .align 8; .global tohost; tohost: .dword 0;       \
+        .align 8; .global fromhost; fromhost: .dword 0;   \
+        .popsection;                                      \
+        .align 8; .global begin_regstate; begin_regstate: \
+        .word 128;                                        \
+        .align 8; .global end_regstate; end_regstate:     \
+        .word 4;
 
-// start of the signature region
+//RV_COMPLIANCE_HALT
+#define RVMODEL_HALT   \
+  li x1, 1;            \
+  write_tohost:        \
+    sw x1, tohost, t5; \
+    j write_tohost;
+
+// initialize hardware platform: install default trap handler to cancel run
+// [note] use ".word 0x30551073" instead of "csrrw x0, mtvec, x10" as Zicsr might not be enabled
+#define RVMODEL_BOOT           \
+    la    x10, boot_terminate; \
+    .word 0x30551073;          \
+    j     boot_end;            \
+  boot_terminate:              \
+    li    x10, 1;              \
+    sw    x10, tohost, t5;     \
+    j     boot_terminate;      \
+  boot_end:
+
+// PMP configuration
+#define RVMODEL_NUM_PMPS 16
+#define RVMODEL_PMP_GRAIN 0
+
+//RV_COMPLIANCE_DATA_BEGIN
 #define RVMODEL_DATA_BEGIN \
   RVMODEL_DATA_SECTION     \
   .align 4;                \
   .global begin_signature; \
   begin_signature:
 
-// end of the signature region
+//RV_COMPLIANCE_DATA_END
 #define RVMODEL_DATA_END \
   .align 4;              \
   .global end_signature; \
@@ -39,40 +61,8 @@
 // debug assertion that GPR should have value: unused
 #define RVMODEL_IO_ASSERT_GPR_EQ(_S, _R, _I)
 
-// initialize hardware platform: install default trap handler to cancel run
-// [note] use ".word 0x30551073" instead of "csrrw x0, mtvec, x10" as Zicsr might not be enabled
-#define RVMODEL_BOOT           \
-    la    x10, boot_terminate; \
-    .word 0x30551073;          \
-    j     boot_end;            \
-  boot_terminate:              \
-    li    x10, 0xF0000000;     \
-    sw    x10, 0(x10);         \
-    j     boot_terminate;      \
-  boot_end:
-
-// dump the test results (signature) via the testbench data dump module
-#define RVMODEL_HALT                       \
-  signature_dump:                          \
-    la   x4, begin_signature;              \
-    la   x5, end_signature;                \
-    li   x6, 0xF0000000;                   \
-  signature_dump_loop:                     \
-    bge  x4, x5, signature_dump_terminate; \
-    lw   x7, 0(x4);                        \
-    sw   x7, 4(x6);                        \
-    addi x4, x4, 4;                        \
-    j    signature_dump_loop;              \
-  signature_dump_terminate:                \
-    sw   x0, 0(x6);                        \
-    j    signature_dump_terminate
-
 // address that causes an access fault when read or written
 #define ACCESS_FAULT_ADDRESS 0xFFFFFF00
-
-// PMP configuration
-#define RVMODEL_NUM_PMPS 16
-#define RVMODEL_PMP_GRAIN 0
 
 // set machine software interrupt via CLINT
 #define RVMODEL_SET_MSW_INT \

@@ -6,6 +6,9 @@ cd $(dirname "$0")
 
 # run arguments
 GHDL_RUN_ARGS="${@}"
+echo "======="
+echo ${@}
+echo "======="
 
 # run simulation
 # timeout as fall-back - simulation should be terminated by the testbench using "finish;"

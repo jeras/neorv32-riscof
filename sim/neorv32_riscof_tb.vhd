@@ -20,9 +20,13 @@ use neorv32.neorv32_package.all;
 
 entity neorv32_riscof_tb is
   generic (
-    begin_signature : string := "";
-    end_signature : string := "";
-    TEST_PATH : string := "" -- path for memory initialization and signature files
+    -- test environment symbols
+    BEGIN_SIGNATURE : string := "";
+    END_SIGNATURE   : string := "";
+    TOHOST          : string := "";
+    FROMHOST        : string := "";
+    -- path for memory initialization, dumping signature files and logging
+    TEST_PATH : string := ""
   );
 end neorv32_riscof_tb;
 
@@ -57,26 +61,68 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
   end function mem8_bv_init_bin_f;
 
   -- dump mem8_bv_t array to plain binary file --
-  procedure mem8_bv_dump_bin_f(file_name : string; mem_v : mem8_bv_t) is
+  procedure mem8_bv_dump_bin_f(file_name : string; mem : mem8_bv_t) is
     type char_file is file of character;
     file     mem_f   : char_file;
     variable data_v  : character;
   begin
     if (file_name /= "") then
       file_open(mem_f, file_name, WRITE_MODE);
-      for index_v in 0 to mem_v'length-1 loop
-        data_v := character'val(to_integer(unsigned(to_stdlogicvector(mem_v(index_v)))));
+      for index_v in mem'range loop
+        data_v := character'val(to_integer(unsigned(to_stdlogicvector(mem(index_v)))));
         write(mem_f, data_v);
       end loop;
     end if;
     file_close(mem_f);
   end procedure mem8_bv_dump_bin_f;
 
+  -- dump mem8_bv_t array to plain binary file --
+  procedure mem8_bv_dump_hex32_f(file_name : string; mem : mem8_bv_t) is
+    file     mem_f   : text;
+    variable data_v  : bit_vector(32-1 downto 0);
+    variable line_v  : line;
+    variable byte_v  : integer range 0 to 3;
+  begin
+    if (file_name /= "") then
+      file_open(mem_f, file_name, WRITE_MODE);
+      for index_v in mem'range loop
+        byte_v := index_v mod 4;
+        case (byte_v) is
+          when 0 => data_v(07 downto 00) := mem(index_v);
+          when 1 => data_v(15 downto 08) := mem(index_v);
+          when 2 => data_v(23 downto 16) := mem(index_v);
+          when 3 => data_v(31 downto 24) := mem(index_v);
+        end case;
+        if byte_v = 3 then
+          hwrite(line_v, data_v);
+          for i in line_v'range loop
+--          line_v(i) := to_lower(line_v(i));
+            if line_v(i) >= 'A' and line_v(i) <= 'F' then
+              line_v(i) := character'val (character'pos (line_v(i)) + 32);
+            end if;
+          end loop;
+          writeline(mem_f, line_v);
+        end if;
+      end loop;
+    end if;
+    file_close(mem_f);
+  end procedure mem8_bv_dump_hex32_f;
+
+  -- parse string to unsigned
+  function string2unsigned32 (str : string) return unsigned is
+    variable line_v : line;
+    variable value_v : unsigned(32-1 downto 0);
+  begin
+    line_v := new string'(str) ;
+    hread(line_v, value_v);
+    return value_v;
+  end function string2unsigned32;
+
   -- memory word address --
   signal mem_addr : integer range 0 to mem_size_c-1;
 
   -- generators --
-  signal clk_gen, rst_gen : std_ulogic := '0';
+  signal clk_gen, rstn_gen : std_ulogic := '0';
 
   -- external bus interface --
   type xbus_t is record
@@ -92,7 +138,6 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
   signal xbus : xbus_t;
 
   signal mem_rdata : std_ulogic_vector(31 downto 0);
-  signal mem_ack, env_ack : std_ulogic;
   signal msi, mei, mti : std_ulogic;
 
 begin
@@ -100,7 +145,7 @@ begin
   -- Clock/Reset Generator ------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
   clk_gen <= not clk_gen after 5 ns;
-  rst_gen <= '0', '1' after 100 ns;
+  rstn_gen <= '0', '1' after 100 ns;
 
 
   -- The Core of the Problem ----------------------------------------------------------------
@@ -157,7 +202,7 @@ begin
   port map (
     -- Global control --
     clk_i       => clk_gen,
-    rstn_i      => rst_gen,
+    rstn_i      => rstn_gen,
     -- External bus interface --
     xbus_adr_o  => xbus.addr,
     xbus_dat_i  => xbus.rdata,
@@ -176,89 +221,69 @@ begin
 
   -- bus feedback --
   xbus.rdata <= mem_rdata;
-  xbus.ack   <= mem_ack or env_ack;
-
-
-  -- Main Memory [rwx] - byte array ------------------
-  -- -------------------------------------------------------------------------------------------
-  main_mem: process(clk_gen)
-    variable mem8_v : mem8_bv_t(0 to mem_size_c-1) := mem8_bv_init_bin_f(TEST_PATH & "main.bin", mem_size_c);
-  begin
-    if rising_edge(clk_gen) then
-      -- defaults --
-      mem_rdata <= (others => '0');
-      mem_ack   <= '0';
-      -- bus access --
-      if (xbus.cyc = '1') and (xbus.stb = '1') and (xbus.addr(31 downto 28) = mem_base_c(31 downto 28)) then
-        mem_ack <= '1';
-        if (xbus.we = '1') then
-          if (xbus.sel(0) = '1') then mem8_v(mem_addr+0) := to_bitvector(xbus.wdata(07 downto 00)); end if;
-          if (xbus.sel(1) = '1') then mem8_v(mem_addr+1) := to_bitvector(xbus.wdata(15 downto 08)); end if;
-          if (xbus.sel(2) = '1') then mem8_v(mem_addr+2) := to_bitvector(xbus.wdata(23 downto 16)); end if;
-          if (xbus.sel(3) = '1') then mem8_v(mem_addr+3) := to_bitvector(xbus.wdata(31 downto 24)); end if;
-        else
-          mem_rdata(07 downto 00) <= to_stdulogicvector(mem8_v(mem_addr+0));
-          mem_rdata(15 downto 08) <= to_stdulogicvector(mem8_v(mem_addr+1));
-          mem_rdata(23 downto 16) <= to_stdulogicvector(mem8_v(mem_addr+2));
-          mem_rdata(31 downto 24) <= to_stdulogicvector(mem8_v(mem_addr+3));
-        end if;
-      end if;
-    end if;
-  end process main_mem;
+  xbus.ack   <= '1';
 
   -- read/write address --
   mem_addr <= to_integer(unsigned(xbus.addr(index_size_f(mem_size_c/4)+1 downto 2))) * 4;
 
 
-  -- Environment Control --------------------------------------------------------------------
+  -- Memory [rwx], Environment Control ------------------
   -- -------------------------------------------------------------------------------------------
-  env_ctrl: process(rst_gen, clk_gen)
-    file     file_v : text open write_mode is TEST_PATH & "DUT-neorv32.signature";
+  main: process(rstn_gen, clk_gen)
+    -- memory (array of mem_size_c bytes)
+    variable mem8_v : mem8_bv_t(0 to mem_size_c-1) := mem8_bv_init_bin_f(TEST_PATH & "main.bin", mem_size_c);
+    -- test environment symbols
+    variable begin_signature_v : unsigned(32-1 downto 0) := string2unsigned32(BEGIN_SIGNATURE);
+    variable end_signature_v   : unsigned(32-1 downto 0) := string2unsigned32(END_SIGNATURE  );
+    variable tohost_v          : unsigned(32-1 downto 0) := string2unsigned32(TOHOST         );
+    variable fromhost_v        : unsigned(32-1 downto 0) := string2unsigned32(FROMHOST       );
+    -- log file
     variable line_v : line;
     variable char_v : integer;
   begin
-    if (rst_gen = '0') then
-      env_ack <= '0';
+    if (rstn_gen = '0') then
       msi     <= '0';
       mti     <= '0';
       mei     <= '0';
     elsif rising_edge(clk_gen) then
-      env_ack <= '0';
+
+      -- defaults --
+      mem_rdata <= (others => '0');
+      -- bus access --
+      if (xbus.cyc = '1') and (xbus.stb = '1') then
+        if (xbus.addr(31 downto 28) = mem_base_c(31 downto 28)) then
+          if (xbus.we = '1') then
+            if (xbus.sel(0) = '1') then mem8_v(mem_addr+0) := to_bitvector(xbus.wdata(07 downto 00)); end if;
+            if (xbus.sel(1) = '1') then mem8_v(mem_addr+1) := to_bitvector(xbus.wdata(15 downto 08)); end if;
+            if (xbus.sel(2) = '1') then mem8_v(mem_addr+2) := to_bitvector(xbus.wdata(23 downto 16)); end if;
+            if (xbus.sel(3) = '1') then mem8_v(mem_addr+3) := to_bitvector(xbus.wdata(31 downto 24)); end if;
+          else
+            mem_rdata(07 downto 00) <= to_stdulogicvector(mem8_v(mem_addr+0));
+            mem_rdata(15 downto 08) <= to_stdulogicvector(mem8_v(mem_addr+1));
+            mem_rdata(23 downto 16) <= to_stdulogicvector(mem8_v(mem_addr+2));
+            mem_rdata(31 downto 24) <= to_stdulogicvector(mem8_v(mem_addr+3));
+          end if;
+        end if;
+      end if;
+
+      -- Environment Control
       if (xbus.cyc = '1') and (xbus.stb = '1') and (xbus.we = '1') then
         -- terminate simulation --
-        if (xbus.addr = x"F0000000") then
-          env_ack <= '1';
+        if (xbus.addr = std_logic_vector(tohost_v)) then
+          mem8_bv_dump_hex32_f( TEST_PATH & "DUT-neorv32.signature",
+            mem8_v(to_integer(begin_signature_v-unsigned(mem_base_c)) to
+                   to_integer(  end_signature_v-unsigned(mem_base_c))) );
           assert false report "Finishing simulation." severity note;
           finish;
-        -- write to log file --
-        elsif (xbus.addr = x"F0000004") then
-          env_ack <= '1';
-          for i in 7 downto 0 loop -- write 32-bit as 8 lowercase HEX chars
-            write(line_v, to_hexchar_f(xbus.wdata(3+i*4 downto 0+i*4)));
-          end loop;
-          writeline(file_v, line_v);
-        -- write to console --
-        elsif (xbus.addr = x"F0000008") then
-          env_ack <= '1';
-          char_v := to_integer(unsigned(xbus.wdata(7 downto 0)));
-          if (char_v >= 128) then -- out of printable range?
-            char_v := 0;
-          end if;
-          if (char_v = 10) then -- line break: flush to console
-            writeline(output, line_v); -- console
-          elsif (char_v /= 13) then
-            write(line_v, character'val(char_v));
-          end if;
         -- interrupt triggers --
         elsif (xbus.addr = x"F000000C") then
-          env_ack <= '1';
           msi     <= xbus.wdata(3);
           mti     <= xbus.wdata(7);
           mei     <= xbus.wdata(11);
         end if;
       end if;
-    end if;
-  end process env_ctrl;
 
+    end if;
+  end process main;
 
 end neorv32_riscof_tb_rtl;
