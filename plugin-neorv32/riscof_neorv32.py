@@ -15,12 +15,6 @@ from riscof.pluginTemplate import pluginTemplate
 
 logger = logging.getLogger()
 
-# Tool configuration
-HOSTGCC = "gcc -Wall -O -g"
-IMAGEGEN_PATH = "./neorv32/sw/image_gen"
-IMAGEGEN_EXE = "image_gen"
-RVOBJCOPY = "riscv-none-elf-objcopy"
-
 class neorv32(pluginTemplate):
     __model__ = "neorv32"
     __version__ = "latest"
@@ -61,50 +55,63 @@ class neorv32(pluginTemplate):
         self.isa_spec = os.path.abspath(config['ispec'])
         self.platform_spec = os.path.abspath(config['pspec'])
 
+        #We capture if the user would like the run the tests on the target or
+        #not. If you are interested in just compiling the tests and not running
+        #them on the target, then following variable should be set to False
+        if 'target_run' in config and config['target_run']=='0':
+            self.target_run = False
+        else:
+            self.target_run = True
+
         # Return the parameters set above back to RISCOF for further processing.
         return sclass
 
     def initialise(self, suite, work_dir, archtest_env):
 
-       # capture the working directory. Any artifacts that the DUT creates should be placed in this
-       # directory. Other artifacts from the framework and the Reference plugin will also be placed
-       # here itself.
-       self.work_dir = work_dir
+        # capture the working directory. Any artifacts that the DUT creates should be placed in this
+        # directory. Other artifacts from the framework and the Reference plugin will also be placed
+        # here itself.
+        self.work_dir = work_dir
 
-       # capture the architectural test-suite directory.
-       self.suite_dir = suite
+        # capture the architectural test-suite directory.
+        self.suite_dir = suite
 
-       # Note the march is not hardwired here, because it will change for each
-       # test. Similarly the output elf name and compile macros will be assigned later in the
-       # runTests function
-       self.compile_cmd = 'riscv-none-elf-gcc -march={0} \
-         -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -g\
-         -T '+self.pluginpath+'/env/link.ld\
-         -I '+self.pluginpath+'/env/\
-         -I ' + archtest_env + ' {2} -o {3} {4}'
+        # Note the march is not hardwired here, because it will change for each
+        # test. Similarly the output elf name and compile macros will be assigned later in the
+        # runTests function
+        self.compile_cmd = 'riscv-none-elf-gcc -march={0} \
+          -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -g\
+          -T '+self.pluginpath+'/env/link.ld\
+          -I '+self.pluginpath+'/env/\
+          -I ' + archtest_env + ' {2} -o {3} {4}'
+
+        self.objcopy_exe = 'riscv-none-elf-objcopy'
+        self.symbols_exe = 'riscv-none-elf-nm'
 
     def build(self, isa_yaml, platform_yaml):
 
-      # load the isa yaml as a dictionary in python.
-      ispec = utils.load_yaml(isa_yaml)['hart0']
+        # load the isa yaml as a dictionary in python.
+        ispec = utils.load_yaml(isa_yaml)['hart0']
 
-      # capture the XLEN value by picking the max value in 'supported_xlen' field of isa yaml. This
-      # will be useful in setting integer value in the compiler string (if not already hardcoded);
-      self.xlen = ('64' if 64 in ispec['supported_xlen'] else '32')
-      self.compile_cmd = self.compile_cmd+' -mabi='+('lp64 ' if 64 in ispec['supported_xlen'] else 'ilp32 ')
+        # capture the XLEN value by picking the max value in 'supported_xlen' field of isa yaml. This
+        # will be useful in setting integer value in the compiler string (if not already hardcoded);
+        self.xlen = ('64' if 64 in ispec['supported_xlen'] else '32')
+        self.compile_cmd = self.compile_cmd+' -mabi='+('lp64 ' if 64 in ispec['supported_xlen'] else 'ilp32 ')
 
-      # Override default exception relocation list (traps for MTVAL being set to zero)
-      print("<plugin-neorv32> yaml-overwrite: overriding default SET_REL_TVAL_MSK macro")
-      neorv32_override  = ' \"-DSET_REL_TVAL_MSK=(('
-      neorv32_override += '(1<<CAUSE_MISALIGNED_LOAD)  | '
-      neorv32_override += '(1<<CAUSE_LOAD_ACCESS)      | '
-      neorv32_override += '(1<<CAUSE_MISALIGNED_STORE) | '
-      neorv32_override += '(1<<CAUSE_STORE_ACCESS)       '
-      neorv32_override += ') & 0xFFFFFFFF)\" '
-      self.compile_cmd += neorv32_override
+        # Override default exception relocation list (traps for MTVAL being set to zero)
+        print("<plugin-neorv32> yaml-overwrite: overriding default SET_REL_TVAL_MSK macro")
+        neorv32_override  = ' \"-DSET_REL_TVAL_MSK=(('
+        neorv32_override += '(1<<CAUSE_MISALIGNED_LOAD)  | '
+        neorv32_override += '(1<<CAUSE_LOAD_ACCESS)      | '
+        neorv32_override += '(1<<CAUSE_MISALIGNED_STORE) | '
+        neorv32_override += '(1<<CAUSE_STORE_ACCESS)       '
+        neorv32_override += ') & 0xFFFFFFFF)\" '
+        self.compile_cmd += neorv32_override
 
     def runTests(self, testList):
-        makefile = os.path.join(self.work_dir, "Makefile." + self.name[:-1])
+        name = self.name[:-1]
+
+        makefile = os.path.join(self.work_dir, "Makefile." + name)
         if os.path.exists(makefile):
             os.remove(makefile)
         make = utils.makeUtil(makefilePath=makefile)
@@ -125,10 +132,11 @@ class neorv32(pluginTemplate):
             # capture the directory where the artifacts of this test will be dumped/created.
             test_dir = testentry['work_dir']
 
-            # name of the signature file as per requirement of RISCOF. RISCOF expects the signature to
-            # be named as DUT-<dut-name>.signature. The below variable creates an absolute path of
-            # signature file.
-            sig_file = os.path.join(test_dir, self.name[:-1] + ".signature")
+            # absolute paths for generated files (path/file)
+            elf       = os.path.join(test_dir, 'main.elf')
+            bin       = os.path.join(test_dir, 'main.bin')
+            signature = os.path.join(test_dir, name + ".signature")
+            symbols   = os.path.join(test_dir, 'main.symbols')
 
             # for each test there are specific compile macros that need to be enabled. The macros in
             # the testList node only contain the macros/values. For the gcc toolchain we need to
@@ -140,19 +148,30 @@ class neorv32(pluginTemplate):
 
             # substitute all variables in the compile command that we created in the initialize
             # function
-            cmd = self.compile_cmd.format(marchstr, self.xlen, test, test_dir+'/main.elf', compile_macros)
+            cmd = self.compile_cmd.format(marchstr, self.xlen, test, elf, compile_macros)
             execute += cmd + "\n"
 
             # generate NEORV32 memory image
-            cmd = f"{RVOBJCOPY} -I elf32-little {test_dir}/main.elf -j .text -O binary {test_dir}/main.bin"
+            cmd = f"{self.objcopy_exe} -I elf32-little {elf} -j .text -O binary {bin}"
+            execute += cmd + "\n"
+
+            # get symbol list from elf file
+            cmd = f'{self.symbols_exe} {elf} > {symbols}'
             execute += cmd + "\n"
 
             # execute GHDL simulation
-            cmd = f"../sim/ghdl_run.sh -gTEST_PATH={test_dir}/"
+#            symbols_list = ['begin_signature', 'end_signature', 'tohost', 'fromhost']
+            symbols_list = ['begin_signature', 'end_signature']
+            symbol_generics = ' '.join([f'-g{symbol}=`grep -w {symbol} {symbols} | cut -c 1-8`' for symbol in symbols_list])
+            cmd = f"../sim/ghdl_run.sh -gTEST_PATH={test_dir}/ {symbol_generics}"
             execute += cmd + "\n"
 
             # copy resulting signature file and trace log
-            make.add_target(execute)
+	        # If the user wants to disable running the tests and only compile the tests,
+            # then the "else" clause is executed below assigning the sim command to simple no action echo statement.
+            if self.target_run:
+                make.add_target(execute)
+            else:
+                make.add_target('echo "NO RUN"')
 
         make.execute_all(self.work_dir)
-

@@ -95,7 +95,9 @@ class sail_cSim(pluginTemplate):
         self.compile_cmd += neorv32_override
 
     def runTests(self, testList, cgf_file=None, header_file= None):
-        makefile = os.path.join(self.work_dir, "Makefile." + self.name[:-1])
+        name = self.name[:-1]
+
+        makefile = os.path.join(self.work_dir, "Makefile." + name)
         if os.path.exists(makefile):
             os.remove(makefile)
         make = utils.makeUtil(makefilePath=makefile)
@@ -153,7 +155,7 @@ class sail_cSim(pluginTemplate):
             test_name = test.rsplit('/',1)[1][:-2]
 
             elf       = os.path.join(test_dir, 'ref.elf')
-            signature = os.path.join(test_dir, self.name[:-1] + ".signature")
+            signature = os.path.join(test_dir, name + ".signature")
             disass    = os.path.join(test_dir, 'ref.disass')
             log       = os.path.join(test_dir, test_name + ".log")
 

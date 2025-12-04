@@ -20,6 +20,8 @@ use neorv32.neorv32_package.all;
 
 entity neorv32_riscof_tb is
   generic (
+    begin_signature : string := "";
+    end_signature : string := "";
     TEST_PATH : string := "" -- path for memory initialization and signature files
   );
 end neorv32_riscof_tb;
