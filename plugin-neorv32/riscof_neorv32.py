@@ -160,9 +160,8 @@ class neorv32(pluginTemplate):
             execute += cmd + "\n"
 
             # execute GHDL simulation
-#            symbols_list = ['begin_signature', 'end_signature', 'tohost', 'fromhost']
-            symbols_list = ['begin_signature', 'end_signature']
-            symbol_generics = ' '.join([f'-g{symbol}=`grep -w {symbol} {symbols} | cut -c 1-8`' for symbol in symbols_list])
+            symbols_list = ['begin_signature', 'end_signature', 'tohost', 'fromhost']
+            symbol_generics = ' '.join([f'-g{symbol.upper()}=`grep -w {symbol} {symbols} | cut -c 1-8`' for symbol in symbols_list])
             cmd = f"../sim/ghdl_run.sh -gTEST_PATH={test_dir}/ {symbol_generics}"
             execute += cmd + "\n"
 
