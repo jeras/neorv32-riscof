@@ -20,13 +20,13 @@ use neorv32.neorv32_package.all;
 
 entity neorv32_riscof_tb is
   generic (
-    -- test environment symbols
+    -- test environment symbols for signature and HTIF
     BEGIN_SIGNATURE : string := "";
     END_SIGNATURE   : string := "";
     TOHOST          : string := "";
     FROMHOST        : string := "";
     -- path for memory initialization, dumping signature files and logging
-    TEST_PATH : string := ""
+    TEST_PATH       : string := ""
   );
 end neorv32_riscof_tb;
 
@@ -141,6 +141,18 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
   signal ack : std_ulogic;
   signal msi, mei, mti : std_ulogic;
 
+  -- simulation trace logger --
+  component neorv32_tracer_simlog
+    generic (
+      LOG_FILE : string -- trace log file
+    );
+    port (
+      clk_i   : in std_ulogic;  -- global clock line
+      rstn_i  : in std_ulogic;  -- global reset line, low-active, async
+      trace_i : in trace_port_t -- CPU trace port
+    );
+  end component;
+
 begin
 
   -- Clock/Reset Generator ------------------------------------------------------------------
@@ -195,10 +207,8 @@ begin
     -- Processor peripherals --
     IO_CLINT_EN         => true,
     IO_TRACER_EN        => true,
-    IO_TRACER_BUFFER    => 1,
-    IO_TRACER_SIMLOG_EN => false
---    IO_TRACER_SIMLOG_EN => true
---    IO_TRACER_SIMLOG_FILE => TEST_PATH & "DUT-neorv32.log"
+    IO_TRACER_BUFFER    => 1
+--  IO_TRACER_SIMLOG_EN => false
   )
   port map (
     -- Global control --
@@ -291,5 +301,17 @@ begin
 
     end if;
   end process main;
+
+  -- Tracer log ------------------
+  -- -------------------------------------------------------------------------------------------
+    neorv32_tracer_simlog0_inst: neorv32_tracer_simlog
+    generic map (
+      LOG_FILE => TEST_PATH & "neorv32.tracer"
+    )
+    port map (
+      clk_i   => clk_gen,
+      rstn_i  => rstn_gen,
+      trace_i => << signal neorv32_top_inst.trace_cpu0_o : trace_port_t >>
+    );
 
 end neorv32_riscof_tb_rtl;
