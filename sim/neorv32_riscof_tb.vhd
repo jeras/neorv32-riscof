@@ -138,6 +138,7 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
   signal xbus : xbus_t;
 
   signal mem_rdata : std_ulogic_vector(31 downto 0);
+  signal ack : std_ulogic;
   signal msi, mei, mti : std_ulogic;
 
 begin
@@ -221,7 +222,7 @@ begin
 
   -- bus feedback --
   xbus.rdata <= mem_rdata;
-  xbus.ack   <= '1';
+  xbus.ack   <= ack;
 
   -- read/write address --
   mem_addr <= to_integer(unsigned(xbus.addr(index_size_f(mem_size_c/4)+1 downto 2))) * 4;
@@ -242,16 +243,19 @@ begin
     variable char_v : integer;
   begin
     if (rstn_gen = '0') then
-      msi     <= '0';
-      mti     <= '0';
-      mei     <= '0';
+      ack <= '1';
+      msi <= '0';
+      mti <= '0';
+      mei <= '0';
     elsif rising_edge(clk_gen) then
+      ack   <= '0';
 
       -- defaults --
       mem_rdata <= (others => '0');
       -- bus access --
       if (xbus.cyc = '1') and (xbus.stb = '1') then
         if (xbus.addr(31 downto 28) = mem_base_c(31 downto 28)) then
+          ack <= '1';
           if (xbus.we = '1') then
             if (xbus.sel(0) = '1') then mem8_v(mem_addr+0) := to_bitvector(xbus.wdata(07 downto 00)); end if;
             if (xbus.sel(1) = '1') then mem8_v(mem_addr+1) := to_bitvector(xbus.wdata(15 downto 08)); end if;
@@ -270,6 +274,7 @@ begin
       if (xbus.cyc = '1') and (xbus.stb = '1') and (xbus.we = '1') then
         -- terminate simulation --
         if (xbus.addr = std_logic_vector(tohost_v)) then
+          ack <= '1';
           mem8_bv_dump_hex32_f( TEST_PATH & "DUT-neorv32.signature",
             mem8_v(to_integer(begin_signature_v-unsigned(mem_base_c)) to
                    to_integer(  end_signature_v-unsigned(mem_base_c))) );
@@ -277,9 +282,10 @@ begin
           finish;
         -- interrupt triggers --
         elsif (xbus.addr = x"F000000C") then
-          msi     <= xbus.wdata(3);
-          mti     <= xbus.wdata(7);
-          mei     <= xbus.wdata(11);
+          ack <= '1';
+          msi <= xbus.wdata(3);
+          mti <= xbus.wdata(7);
+          mei <= xbus.wdata(11);
         end if;
       end if;
 
