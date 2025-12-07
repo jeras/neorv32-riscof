@@ -76,7 +76,7 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
     file_close(mem_f);
   end procedure mem8_bv_dump_bin_f;
 
-  -- dump mem8_bv_t array to plain binary file --
+  -- dump mem8_bv_t array to 32-bit lowercase HEX file --
   procedure mem8_bv_dump_hex32_f(file_name : string; mem : mem8_bv_t) is
     file     mem_f   : text;
     variable data_v  : bit_vector(32-1 downto 0);
