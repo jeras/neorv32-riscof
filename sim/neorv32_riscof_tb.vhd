@@ -76,7 +76,7 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
     file_close(mem_f);
   end procedure mem8_bv_dump_bin_f;
 
-  -- dump mem8_bv_t array to 32-bit lowercase HEX file --
+  -- dump mem8_bv_t array to plain binary file --
   procedure mem8_bv_dump_hex32_f(file_name : string; mem : mem8_bv_t) is
     file     mem_f   : text;
     variable data_v  : bit_vector(32-1 downto 0);
@@ -304,14 +304,14 @@ begin
 
   -- Tracer log ------------------
   -- -------------------------------------------------------------------------------------------
-    neorv32_tracer_simlog0_inst: neorv32_tracer_simlog
-    generic map (
-      LOG_FILE => TEST_PATH & "neorv32.tracer"
-    )
-    port map (
-      clk_i   => clk_gen,
-      rstn_i  => rstn_gen,
-      trace_i => << signal neorv32_top_inst.trace_cpu0_o : trace_port_t >>
-    );
+  neorv32_tracer_simlog0_inst: neorv32_tracer_simlog
+  generic map (
+    LOG_FILE => TEST_PATH & "neorv32.tracer"
+  )
+  port map (
+    clk_i   => clk_gen,
+    rstn_i  => rstn_gen,
+    trace_i => << signal neorv32_top_inst.trace_cpu0_o : trace_port_t >>
+  );
 
 end neorv32_riscof_tb_rtl;
