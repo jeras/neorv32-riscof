@@ -17,21 +17,21 @@ use ieee.numeric_std.all;
 library neorv32;
 use neorv32.neorv32_package.all;
 
-package neorv32_ip_pkg is
+package neorv32_io_pkg is
 
   -- memory type (bit_vector type for optimized system storage) --
-  type mem8_bv_t  is array (natural range <>) of bit_vector( 8-1 downto 0);
-  type mem32_bv_t is array (natural range <>) of bit_vector(32-1 downto 0);
+  type array8_bv_t  is array (natural range <>) of bit_vector( 8-1 downto 0);
+  type array32_bv_t is array (natural range <>) of bit_vector(32-1 downto 0);
 
   -- file types
   type file_char_t is file of character;
-  type file_text_t is text;
+  type file_text_t is file of text;
 
 end package neorv32_io_pkg;
 
 package body neorv32_io_pkg is
 
-  pure io_read_bit_vector (f : file_char_t, len : positive := 1) return bit_vector is
+  pure function io_read_bit_vector (f : file_char_t; len : positive := 1) return bit_vector is
     variable char_v : character;
     variable data_v : bit_vector(len*8-1 downto 0);
   begin
@@ -42,14 +42,14 @@ package body neorv32_io_pkg is
     return data_v;
   end function io_read_bit_vector;
 
-  procedure io_write_bit_vector (f : file_char_t, data_v : bit_vector) is
+  procedure io_write_bit_vector (f : file_char_t; data_v : bit_vector) is
     variable char_v : character;
   begin
     for i in 0 to data_v'size/8-1 loop
       char_v := character'val(to_integer(unsigned(data_v((i+1)*8 downto (i+0)*8))));
       write(f, char_v);
     end loop;
-  end function io_write_bit_vector;
+  end procedure io_write_bit_vector;
 
 
   -- initialize mem8_bv_t array from plain binary file --
@@ -123,7 +123,7 @@ package body neorv32_io_pkg is
   end procedure mem8_bv_dump_hex32_f;
 
   -- parse string to unsigned
-  function string2unsigned32 (str : string) return unsigned is
+  pure function string2unsigned32 (str : string) return unsigned is
     variable line_v : line;
     variable value_v : unsigned(32-1 downto 0);
   begin
@@ -131,8 +131,5 @@ package body neorv32_io_pkg is
     hread(line_v, value_v);
     return value_v;
   end function string2unsigned32;
-
-  -- memory word address --
-  signal mem_addr : integer range 0 to mem_size_c-1;
 
 end package body neorv32_io_pkg;
