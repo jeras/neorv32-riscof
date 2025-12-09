@@ -38,7 +38,8 @@ class neorv32(pluginTemplate):
         self.dut_exe = os.path.join(config['PATH'] if 'PATH' in config else "","neorv32")
 
         # prepare simulation (GHDL)
-        execute = f"./sim/ghdl_setup.sh && rm -f *.log *.signature"
+        execute = f"./sim/{self.config['simulator']}_setup.sh && rm -f *.log *.signature"
+        
         logger.debug('DUT executing ' + execute)
         utils.shellCommand(execute).run()
 
@@ -161,8 +162,12 @@ class neorv32(pluginTemplate):
 
             # execute GHDL simulation
             symbols_list = ['begin_signature', 'end_signature', 'tohost', 'fromhost']
-            symbol_generics = ' '.join([f'-g{symbol.upper()}=`grep -w {symbol} {symbols} | cut -c 1-8`' for symbol in symbols_list])
-            cmd = f"../sim/ghdl_run.sh -gTEST_PATH={test_dir}/ {symbol_generics}"
+            if self.config['simulator'] == 'ghdl':
+                symbol_generics = ' '.join([f'-g{symbol.upper()}=`grep -w {symbol} {symbols} | cut -c 1-8`' for symbol in symbols_list])
+                cmd = f"../sim/ghdl_run.sh -gTEST_PATH={test_dir}/ {symbol_generics}"
+            if self.config['simulator'] == 'nvc':
+                symbol_generics = ' '.join([f'{symbol.upper()}=`grep -w {symbol} {symbols} | cut -c 1-8`' for symbol in symbols_list])
+                cmd = f"../sim/nvc_run.sh TEST_PATH={test_dir}/ {symbol_generics}"
             execute += cmd + "\n"
 
             # copy resulting signature file and trace log
