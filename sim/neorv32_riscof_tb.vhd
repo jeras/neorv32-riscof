@@ -18,6 +18,8 @@ use ieee.numeric_std.all;
 library neorv32;
 use neorv32.neorv32_package.all;
 
+use neorv32.neorv32_io_pkg.all;
+
 entity neorv32_riscof_tb is
   generic (
     -- test environment symbols for signature and HTIF
@@ -36,78 +38,6 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
   constant mem_size_c : natural := 4*1024*1024; -- bytes
   constant mem_base_c : std_ulogic_vector(31 downto 0) := x"80000000";
 
-  -- memory type (bit_vector type for optimized system storage) --
-  type mem8_bv_t is array (natural range <>) of bit_vector(7 downto 0);
-
-  -- initialize mem8_bv_t array from plain binary file --
-  impure function mem8_bv_init_bin_f(file_name : string; size : natural) return mem8_bv_t is
-    type char_file is file of character;
-    file     mem_f   : char_file;
-    variable mem_v   : mem8_bv_t(0 to size-1);
-    variable index_v : natural;
-    variable data_v  : character;
-  begin
-    if (file_name /= "") then
-      file_open(mem_f, file_name, READ_MODE);
-      index_v := 0;
-      while (endfile(mem_f) = false) and (index_v < size) loop
-        read(mem_f, data_v);
-        mem_v(index_v) := to_bitvector(std_logic_vector(to_unsigned(character'pos(data_v),8)));
-        index_v := index_v + 1;
-      end loop;
-    end if;
-    file_close(mem_f);
-    return mem_v;
-  end function mem8_bv_init_bin_f;
-
-  -- dump mem8_bv_t array to plain binary file --
-  procedure mem8_bv_dump_bin_f(file_name : string; mem : mem8_bv_t) is
-    type char_file is file of character;
-    file     mem_f   : char_file;
-    variable data_v  : character;
-  begin
-    if (file_name /= "") then
-      file_open(mem_f, file_name, WRITE_MODE);
-      for index_v in mem'range loop
-        data_v := character'val(to_integer(unsigned(to_stdlogicvector(mem(index_v)))));
-        write(mem_f, data_v);
-      end loop;
-    end if;
-    file_close(mem_f);
-  end procedure mem8_bv_dump_bin_f;
-
-  -- dump mem8_bv_t array to plain binary file --
-  procedure mem8_bv_dump_hex32_f(file_name : string; mem : mem8_bv_t) is
-    file     mem_f   : text;
-    variable data_v  : bit_vector(32-1 downto 0);
-    variable line_v  : line;
-    variable byte_v  : integer range 0 to 3;
-  begin
-    if (file_name /= "") then
-      file_open(mem_f, file_name, WRITE_MODE);
-      for index_v in mem'range loop
-        byte_v := index_v mod 4;
-        case (byte_v) is
-          when 0 => data_v(07 downto 00) := mem(index_v);
-          when 1 => data_v(15 downto 08) := mem(index_v);
-          when 2 => data_v(23 downto 16) := mem(index_v);
-          when 3 => data_v(31 downto 24) := mem(index_v);
-        end case;
-        if byte_v = 3 then
-          hwrite(line_v, data_v);
-          for i in line_v'range loop
---          line_v(i) := to_lower(line_v(i));
-            if line_v(i) >= 'A' and line_v(i) <= 'F' then
-              line_v(i) := character'val (character'pos (line_v(i)) + 32);
-            end if;
-          end loop;
-          writeline(mem_f, line_v);
-        end if;
-      end loop;
-    end if;
-    file_close(mem_f);
-  end procedure mem8_bv_dump_hex32_f;
-
   -- parse string to unsigned
   function string2unsigned32 (str : string) return unsigned is
     variable line_v : line;
@@ -123,6 +53,7 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
 
   -- generators --
   signal clk_gen, rstn_gen : std_ulogic := '0';
+  signal dump : std_ulogic := '0';
 
   -- external bus interface --
   type xbus_t is record
@@ -158,7 +89,21 @@ begin
   -- Clock/Reset Generator ------------------------------------------------------------------
   -- -------------------------------------------------------------------------------------------
   clk_gen <= not clk_gen after 5 ns;
-  rstn_gen <= '0', '1' after 100 ns;
+  
+  process
+  begin
+    rstn_gen <= '0';
+    for i in 0 to 10-1 loop
+      wait until rising_edge(clk_gen);
+    end loop;
+    -- synchronous reset release
+    rstn_gen <= '1';
+    -- state dump pulse
+    dump <= '1';
+    wait until rising_edge(clk_gen);
+    dump <= '0';
+    wait;
+  end process;
 
 
   -- The Core of the Problem ----------------------------------------------------------------
@@ -253,7 +198,7 @@ begin
     variable char_v : integer;
   begin
     if (rstn_gen = '0') then
-      ack <= '1';
+      ack <= '0';
       msi <= '0';
       mti <= '0';
       mei <= '0';
@@ -267,15 +212,13 @@ begin
         if (xbus.addr(31 downto 28) = mem_base_c(31 downto 28)) then
           ack <= '1';
           if (xbus.we = '1') then
-            if (xbus.sel(0) = '1') then mem8_v(mem_addr+0) := to_bitvector(xbus.wdata(07 downto 00)); end if;
-            if (xbus.sel(1) = '1') then mem8_v(mem_addr+1) := to_bitvector(xbus.wdata(15 downto 08)); end if;
-            if (xbus.sel(2) = '1') then mem8_v(mem_addr+2) := to_bitvector(xbus.wdata(23 downto 16)); end if;
-            if (xbus.sel(3) = '1') then mem8_v(mem_addr+3) := to_bitvector(xbus.wdata(31 downto 24)); end if;
+            for i in 0 to 4-1 loop
+              if (xbus.sel(i) = '1') then mem8_v(mem_addr+i) := to_bitvector(xbus.wdata((i+1)*8-1 downto (i+0)*8)); end if;
+            end loop;
           else
-            mem_rdata(07 downto 00) <= to_stdulogicvector(mem8_v(mem_addr+0));
-            mem_rdata(15 downto 08) <= to_stdulogicvector(mem8_v(mem_addr+1));
-            mem_rdata(23 downto 16) <= to_stdulogicvector(mem8_v(mem_addr+2));
-            mem_rdata(31 downto 24) <= to_stdulogicvector(mem8_v(mem_addr+3));
+            for i in 0 to 4-1 loop
+              mem_rdata((i+1)*8-1 downto (i+0)*8) <= to_stdulogicvector(mem8_v(mem_addr+i));
+            end loop;
           end if;
         end if;
       end if;
@@ -301,17 +244,5 @@ begin
 
     end if;
   end process main;
-
-  -- Tracer log ------------------
-  -- -------------------------------------------------------------------------------------------
-  neorv32_tracer_simlog0_inst: neorv32_tracer_simlog
-  generic map (
-    LOG_FILE => TEST_PATH & "neorv32.tracer"
-  )
-  port map (
-    clk_i   => clk_gen,
-    rstn_i  => rstn_gen,
-    trace_i => << signal neorv32_top_inst.trace_cpu0_o : trace_port_t >>
-  );
 
 end neorv32_riscof_tb_rtl;

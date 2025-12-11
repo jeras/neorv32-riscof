@@ -60,8 +60,7 @@ HDL+=" $NEORV32_RTL/core/neorv32_wdt.vhd"
 HDL+=" $NEORV32_RTL/core/neorv32_xbus.vhd"
 HDL+=" $NEORV32_RTL/core/neorv32_top.vhd"
 
-#HDL+=" neorv32_io_pkg.vhd"
-#HDL+=" neorv32_hdldb.vhd"
+HDL+=" neorv32_io_pkg.vhd"
 HDL+=" neorv32_riscof_tb_2019.vhd"
 
 nvc --std=2019 --work=neorv32 -a $HDL
