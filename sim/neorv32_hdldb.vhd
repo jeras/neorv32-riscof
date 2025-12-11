@@ -22,27 +22,37 @@ use neorv32.neorv32_io_pkg.all;
 
 entity neorv32_hdldb is
   generic (
-    -- file names
-    STATE_FILE : string; -- state dump file
-    TRACE_FILE : string  -- trace log file
-    -- 
+    GPR_SIZE : natural := 32;
+    CSR_SIZE : natural := 0;
+    MEM_SIZE : natural := 1024
   );
   port (
+    -- system signals
     clk_i   : in std_ulogic;  -- global clock line
     rstn_i  : in std_ulogic;  -- global reset line, low-active, async
-    -- state port
-    gpr_i   : in array32_bv_t;
-    mem_i   : in array8_bv_t;
-    -- TODO: CSR
-    -- trace port
-    trace_i : in trace_port_t -- CPU trace port
   );
 end neorv32_hdldb;
 
 architecture neorv32_hdldb_behav of neorv32_hdldb is
 
+  -- trace port
+  signal trace : trace_port_t; -- CPU trace port
 
 begin
+
+  state_dump: process
+    -- state port
+    variable gpr_v : array32_bv_t(0 to GPR_SIZE-1);
+    variable csr_v : array32_bv_t(0 to CSR_SIZE-1);
+    variable mem_v : array8_bv_t (0 to MEM_SIZE-1);
+    -- TODO: CSR
+
+  begin
+    gpr_v := << signal .neorv32_riscof_tb.neorv32_top_inst.trace_cpu0_o : array32_bv_t >>;
+    mem_v := << signal .neorv32_riscof_tb.main.array8_v : array8_bv_t >>;
+    wait;
+    --trace_i := << signal .neorv32_riscof_tb.neorv32_top_inst.trace_cpu0_o : trace_port_t >>
+  end process state_dump;
 
 
 end neorv32_hdldb_behav;

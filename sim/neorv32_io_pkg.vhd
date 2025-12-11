@@ -17,26 +17,29 @@ use ieee.numeric_std.all;
 package neorv32_io_pkg is
 
   -- memory type (bit_vector type for optimized system storage) --
-  type mem8_bv_t is array (natural range <>) of bit_vector(8-1 downto 0);
-  type mem32_bv_t is array (natural range <>) of bit_vector(32-1 downto 0);
+  type array8_bv_t is array (natural range <>) of bit_vector(8-1 downto 0);
+  type array32_bv_t is array (natural range <>) of bit_vector(32-1 downto 0);
 
-  impure function mem8_bv_init_bin_f(file_name : string; size : natural) return mem8_bv_t;
-  procedure mem8_bv_dump_bin_f(file_name : string; mem : mem8_bv_t; mode : file_open_kind := WRITE_MODE);
-  procedure mem8_bv_dump_hex32_f(file_name : string; mem : mem8_bv_t; mode : file_open_kind := WRITE_MODE);
+  impure function array8_bv_init_bin_f(file_name : string; size : natural) return array8_bv_t;
+  procedure array8_bv_dump_bin_f(file_name : string; mem : array8_bv_t; mode : file_open_kind := WRITE_MODE);
+  procedure array8_bv_dump_hex32_f(file_name : string; mem : array8_bv_t; mode : file_open_kind := WRITE_MODE);
   pure function string2unsigned32 (str : string) return unsigned;
 
 end package neorv32_io_pkg;
 
 package body neorv32_io_pkg is
 
-  -- initialize mem8_bv_t array from plain binary file --
-  impure function mem8_bv_init_bin_f(
+  -- 8-bit bin_vector array, binary file IO ----------------------------------------------------
+  -- -------------------------------------------------------------------------------------------
+
+  -- initialize array8_bv_t array from plain binary file --
+  impure function array8_bv_init_bin_f(
     file_name : string;
     size      : natural
-  ) return mem8_bv_t is
+  ) return array8_bv_t is
     type char_file is file of character;
     file     mem_f   : char_file;
-    variable mem_v   : mem8_bv_t(0 to size-1);
+    variable mem_v   : array8_bv_t(0 to size-1);
     variable index_v : natural;
     variable data_v  : character;
   begin
@@ -51,12 +54,12 @@ package body neorv32_io_pkg is
     end if;
     file_close(mem_f);
     return mem_v;
-  end function mem8_bv_init_bin_f;
+  end function array8_bv_init_bin_f;
 
-  -- dump mem8_bv_t array to plain binary file --
-  procedure mem8_bv_dump_bin_f(
+  -- dump array8_bv_t array to plain binary file --
+  procedure array8_bv_dump_bin_f(
     file_name : string;
-    mem       : mem8_bv_t;
+    mem       : array8_bv_t;
     mode      : file_open_kind := WRITE_MODE
   ) is
     type char_file is file of character;
@@ -71,12 +74,44 @@ package body neorv32_io_pkg is
       end loop;
     end if;
     file_close(mem_f);
-  end procedure mem8_bv_dump_bin_f;
+  end procedure array8_bv_dump_bin_f;
 
-  -- dump mem8_bv_t array to 32-bit hex file --
-  procedure mem8_bv_dump_hex32_f(
+  -- 8-bit bin_vector array, 32-bit hex file IO ------------------------------------------------
+  -- -------------------------------------------------------------------------------------------
+
+  -- initialize array8_bv_t array from 32-bit hex file --
+  impure function array8_bv_init_hex32_f(
     file_name : string;
-    mem       : mem8_bv_t;
+    size      : natural
+  ) return array8_bv_t is
+    type char_file is file of character;
+    file     mem_f   : text;
+    variable mem_v   : array8_bv_t(0 to size-1);
+    variable index_v : natural;
+    variable line_v  : line;
+    variable data_v  : bit_vector(32-1 downto 0);
+  begin
+    if (file_name /= "") then
+      file_open(mem_f, file_name, READ_MODE);
+      index_v := 0;
+      while (endfile(mem_f) = false) and (index_v < size) loop
+        readline(mem_f, line_v);
+        hread(line_v, data_v);
+        mem_v(index_v+0) := data_v(07 downto 00);
+        mem_v(index_v+1) := data_v(15 downto 08);
+        mem_v(index_v+2) := data_v(23 downto 16);
+        mem_v(index_v+3) := data_v(31 downto 24);
+        index_v := index_v + 4;
+      end loop;
+    end if;
+    file_close(mem_f);
+    return mem_v;
+  end function array8_bv_init_hex32_f;
+
+  -- dump array8_bv_t array to 32-bit hex file --
+  procedure array8_bv_dump_hex32_f(
+    file_name : string;
+    mem       : array8_bv_t;
     mode      : file_open_kind := WRITE_MODE
   ) is
     file     mem_f   : text;
@@ -107,7 +142,10 @@ package body neorv32_io_pkg is
       end loop;
     end if;
     file_close(mem_f);
-  end procedure mem8_bv_dump_hex32_f;
+  end procedure array8_bv_dump_hex32_f;
+
+  -- miscellaneous -----------------------------------------------------------------------------
+  -- -------------------------------------------------------------------------------------------
 
   -- parse string to unsigned
   pure function string2unsigned32 (

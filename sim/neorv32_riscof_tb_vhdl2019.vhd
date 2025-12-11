@@ -178,7 +178,7 @@ begin
   -- -------------------------------------------------------------------------------------------
   main: process(rstn_gen, clk_gen)
     -- memory (array of mem_size_c bytes)
-    variable mem8_v : mem8_bv_t(0 to mem_size_c-1) := mem8_bv_init_bin_f(getenv("TEST_PATH") & "main.bin", mem_size_c);
+    variable array8_v : array8_bv_t(0 to mem_size_c-1) := array8_bv_init_bin_f(getenv("TEST_PATH") & "main.bin", mem_size_c);
     -- test environment symbols
     variable begin_signature_v : unsigned(32-1 downto 0) := string2unsigned32(getenv("BEGIN_SIGNATURE"));
     variable end_signature_v   : unsigned(32-1 downto 0) := string2unsigned32(getenv("END_SIGNATURE"  ));
@@ -204,11 +204,11 @@ begin
           ack <= '1';
           if (xbus.we = '1') then
             for i in 0 to 4-1 loop
-              if (xbus.sel(i) = '1') then mem8_v(mem_addr+i) := to_bitvector(xbus.wdata((i+1)*8-1 downto (i+0)*8)); end if;
+              if (xbus.sel(i) = '1') then array8_v(mem_addr+i) := to_bitvector(xbus.wdata((i+1)*8-1 downto (i+0)*8)); end if;
             end loop;
           else
             for i in 0 to 4-1 loop
-              mem_rdata((i+1)*8-1 downto (i+0)*8) <= to_stdulogicvector(mem8_v(mem_addr+i));
+              mem_rdata((i+1)*8-1 downto (i+0)*8) <= to_stdulogicvector(array8_v(mem_addr+i));
             end loop;
           end if;
         end if;
@@ -219,9 +219,9 @@ begin
         -- terminate simulation --
         if (xbus.addr = std_logic_vector(tohost_v)) then
           ack <= '1';
-          mem8_bv_dump_hex32_f( getenv("TEST_PATH") & "DUT-neorv32.signature",
-            mem8_v(to_integer(begin_signature_v-unsigned(mem_base_c)) to
-                   to_integer(  end_signature_v-unsigned(mem_base_c))) );
+          array8_bv_dump_hex32_f( getenv("TEST_PATH") & "DUT-neorv32.signature",
+            array8_v(to_integer(begin_signature_v-unsigned(mem_base_c)) to
+                     to_integer(  end_signature_v-unsigned(mem_base_c))) );
           assert false report "Finishing simulation." severity note;
           finish;
         -- interrupt triggers --
@@ -235,5 +235,15 @@ begin
 
     end if;
   end process main;
+
+  -- Tracer log ------------------
+  -- -------------------------------------------------------------------------------------------
+
+  neorv32_hdldb_inst: entity neorv32.neorv32_hdldb
+  port map (
+    -- system signals
+    clk_i     => clk_gen,
+    rstn_i    => rstn_gen
+  );
 
 end neorv32_riscof_tb_rtl;
