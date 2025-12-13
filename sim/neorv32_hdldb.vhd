@@ -48,7 +48,11 @@ begin
     -- TODO: CSR
 
   begin
-    gpr_v := << signal .neorv32_riscof_tb.neorv32_top_inst.trace_cpu0_o : array32_bv_t >>;
+    gpr_v := << signal .neorv32_riscof_tb.neorv32_top_inst.neorv32_cpu_inst.neorv32_cpu_regfile_inst.register_file_fpga.reg_file_inst.sdpram : array32_bv_t >>;
+    csr_v := (
+      16#000# => 32X"00000000",
+      others  => 32X"00000000"
+    );
     mem_v := << signal .neorv32_riscof_tb.main.array8_v : array8_bv_t >>;
     wait;
     --trace_i := << signal .neorv32_riscof_tb.neorv32_top_inst.trace_cpu0_o : trace_port_t >>
