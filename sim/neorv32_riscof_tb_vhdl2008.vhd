@@ -53,7 +53,6 @@ architecture neorv32_riscof_tb_rtl of neorv32_riscof_tb is
 
   -- generators --
   signal clk_gen, rstn_gen : std_ulogic := '0';
-  signal dump : std_ulogic := '0';
 
   -- external bus interface --
   type xbus_t is record
@@ -98,10 +97,6 @@ begin
     end loop;
     -- synchronous reset release
     rstn_gen <= '1';
-    -- state dump pulse
-    dump <= '1';
-    wait until rising_edge(clk_gen);
-    dump <= '0';
     wait;
   end process;
 
@@ -187,7 +182,7 @@ begin
   -- -------------------------------------------------------------------------------------------
   main: process(rstn_gen, clk_gen)
     -- memory (array of mem_size_c bytes)
-    variable array8_v : array8_bv_t(0 to mem_size_c-1) := array8_bv_init_bin_f(TEST_PATH & "main.bin", mem_size_c);
+    variable array8_v : array_bv8_t(0 to mem_size_c-1) := array_bv8_init_bin_f(TEST_PATH & "main.bin", mem_size_c);
     -- test environment symbols
     variable begin_signature_v : unsigned(32-1 downto 0) := string2unsigned32(BEGIN_SIGNATURE);
     variable end_signature_v   : unsigned(32-1 downto 0) := string2unsigned32(END_SIGNATURE  );
@@ -228,7 +223,7 @@ begin
         -- terminate simulation --
         if (xbus.addr = std_logic_vector(tohost_v)) then
           ack <= '1';
-          array8_bv_dump_hex32_f( TEST_PATH & "DUT-neorv32.signature",
+          array_bv8_dump_hex32_f( TEST_PATH & "DUT-neorv32.signature",
             array8_v(to_integer(begin_signature_v-unsigned(mem_base_c)) to
                      to_integer(  end_signature_v-unsigned(mem_base_c))) );
           assert false report "Finishing simulation." severity note;

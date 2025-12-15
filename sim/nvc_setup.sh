@@ -61,6 +61,7 @@ HDL+=" $NEORV32_RTL/core/neorv32_xbus.vhd"
 HDL+=" $NEORV32_RTL/core/neorv32_top.vhd"
 
 HDL+=" neorv32_io_pkg.vhd"
+HDL+=" neorv32_hdldb_io_pkg.vhd"
 HDL+=" neorv32_hdldb.vhd"
 HDL+=" neorv32_riscof_tb_vhdl2019.vhd"
 
