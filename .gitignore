@@ -8,3 +8,6 @@ plugin-sail_cSim/env/sail_config.json
 *.signature
 *.log
 *.cf
+# dependancies
+xpack*
+sail*

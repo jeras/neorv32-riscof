@@ -46,11 +46,13 @@ begin
   ---------------------------------------
 
   state_dump: process
-    -- state port
-    variable gpr_v : array_bit_vector(0 to GPR_SIZE-1)(XLEN-1 downto 0);
-    variable pc_v  :       bit_vector                 (XLEN-1 downto 0);
---  variable csr_v : array_bit_vector(0 to CSR_SIZE-1)(XLEN-1 downto 0);
-    variable mem_v : array_bit_vector(0 to MEM_SIZE-1)(XLEN-1 downto 0);
+    -- CPU state
+    variable gpr_v : array_std_logic_vector(0 to GPR_SIZE-1)(XLEN-1 downto 0);
+    variable pc_v  :       std_logic_vector                 (XLEN-1 downto 0);
+--  variable csr_v : array_std_logic_vector(0 to CSR_SIZE-1)(XLEN-1 downto 0);
+    variable mem_v : array_bit_vector      (0 to MEM_SIZE-1)(XLEN-1 downto 0);
+    -- trace dump file
+    variable dumpfile : string := "neorv32.hdldb-dump";
   begin
     -- wait for reset release
     loop
@@ -59,8 +61,8 @@ begin
     end loop;
 
     -- sample state
-    gpr_v := << signal .neorv32_riscof_tb.neorv32_top_inst.neorv32_cpu_inst.neorv32_cpu_regfile_inst.register_file_fpga.reg_file_inst.sdpram : gpr_v'subtype >>;
-    pc_v  := << signal .neorv32_riscof_tb.neorv32_top_inst.neorv32_cpu_inst.neorv32_cpu_frontend_inst.fetch.pc : pc_v'subtype >>;
+    gpr_v := << signal .neorv32_riscof_tb.neorv32_top_inst.core_complex_gen(0).neorv32_cpu_inst.neorv32_cpu_regfile_inst.register_file_fpga.reg_file_inst.sdpram : gpr_v'subtype >>;
+    pc_v  := << signal .neorv32_riscof_tb.neorv32_top_inst.core_complex_gen(0).neorv32_cpu_inst.neorv32_cpu_frontend_inst.fetch.pc : pc_v'subtype >>;
 --  csr_v := (
 --    16#000# => << signal .neorv32_riscof_tb.neorv32_top_inst.neorv32_cpu_inst.,
 --    others  => 32X"00000000"
@@ -68,7 +70,7 @@ begin
     mem_v := << signal .neorv32_riscof_tb.main.array8_v : mem_v'subtype >>;
     
     -- dump state
-    dump_bin("neorv32.hdldb-dump", gpr_v);
+    dump_bin(dumpfile, gpr_v);
     wait;
   end process state_dump;
 

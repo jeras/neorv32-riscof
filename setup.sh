@@ -14,6 +14,7 @@ tar -xzf sail-riscv-Linux-x86_64.tar.gz
 export PATH=`pwd`/sail-riscv-Linux-x86_64/bin:$PATH
 
 # Python dependencies
+# pip3 install git+https://github.com/riscv/riscof.git@d38859f85fe407bcacddd2efcd355ada4683aee4
 git submodule add https://github.com/riscv/riscof.git
 cd riscof
 git checkout d38859f
